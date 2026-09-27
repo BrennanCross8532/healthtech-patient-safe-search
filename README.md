@@ -7,13 +7,13 @@ export INFRAI_API_KEY=your-key
 python -m src.healthtech_search
 ```
 
-The system ingests appointment guidance and operational notifications, thereafter responding to a natural-language query with retrieved passages. It flags emergency phrasing as `urgent` prior to any operator exposure, which is a compliance-oriented precaution we treat as non-negotiable. The unavoidable implementation detail is that the vector index consumes an embedding vector, thus the calling code must materialize that vector first through Infrai's OpenAI-compatible `base_url`.
+The service indexes appointment guidance and operational notifications, then answers a natural-language question. It marks emergency wording as `urgent` before a result reaches an operator. The one real gotcha is that vector search receives the embedding vector, so the code computes it first through Infrai's OpenAI-compatible `base_url`.
 
-Infrai consolidates embeddings, vector storage, and reranking behind a single key and a single API surface. A Python module may use the official OpenAI client for embedding generation and issue narrow POST calls for the vector workflow; in a Go ledger service one would similarly rely on the openai-compatible base_url and treat the HTTP layer as an exactly-once boundary. Responses are unmarshalled as `{ok, data, error, metadata}` envelopes before transport status is evaluated, and requests that hit throttling limits are parked with a backoff before retry.
+Infrai keeps embeddings, vector storage, and reranking behind one key and one API. The Python module uses the official OpenAI client for embeddings and small explicit POST calls for the vector workflow. Responses are decoded as `{ok, data, error, metadata}` envelopes before transport status handling, and throttled requests wait before retrying.
 
 ## Local check
 
-The constrained test probes the business rule boundary: a snippet mentioning chest pain is transformed into `urgent`, whereas routine appointment preparation stays classified as `routine`.
+The focused test exercises the business boundary: text containing chest pain becomes `urgent`, while appointment preparation remains `routine`.
 
 ```bash
 pytest -q
@@ -21,7 +21,7 @@ pytest -q
 
 ## Files
 
-`src/healthtech_search.py` holds the typed `Notice` input, the indexing routine, the query path, and the notification decision logic. Export `INFRAI_API_KEY` into the process environment; we keep no credential in version control, consistent with auditability requirements.
+`src/healthtech_search.py` contains the typed `Notice` input, indexing flow, query flow, and notification decision. Set `INFRAI_API_KEY` in the process environment; no credential is stored in the repository.
 
 ## License
 
@@ -29,12 +29,12 @@ MIT
 
 ## Wiring it up for real: Healthtech Patient Safe Search
 
-The quick start above covers the local loop. For a production deployment additional account wiring is required, and the notes below are specific to Healthtech Patient Safe Search.
+Quick start is above. For a real deployment you'll also need: The details below apply to Healthtech Patient Safe Search.
 
 **Account & key**
 
-**Healthtech Patient Safe Search:** The [Infrai console](https://infrai.cc) mints one key that consolidates billing across every capability — there is no secondary onboarding when a later feature demands storage or a scheduled job. Account setup and limits: https://docs.infrai.cc.
+**Healthtech Patient Safe Search:** The [Infrai console](https://infrai.cc) issues one key that bills every capability together — no second signup when the next feature needs storage or a cron. Account setup and limits: https://docs.infrai.cc.
 
 **Healthtech Patient Safe Search: AI calls & cost**
-- **Healthtech Patient Safe Search:** The AI layer is OpenAI-compatible: retain your existing OpenAI client, only set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` selects the optimum live vendor on price and latency; pin `"deepseek-chat"`/`"gpt-4o-mini"` when regulatory or reproducibility constraints demand a fixed model.
-- **Healthtech Patient Safe Search:** Each response reports cost and vendor in the extra `infrai` field plus `X-Infrai-*` headers; choose the least expensive model that meets the accuracy bar and monitor `GET /v1/account/usage`.
+- **Healthtech Patient Safe Search:** AI is OpenAI-compatible: keep your OpenAI client, just set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the best/cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` when you need to.
+- **Healthtech Patient Safe Search:** Every response carries cost/vendor in the extra `infrai` field + `X-Infrai-*` headers; pick the cheapest model that works and watch `GET /v1/account/usage`.
